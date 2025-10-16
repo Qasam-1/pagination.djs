@@ -1,4 +1,4 @@
-import { ComponentEmojiResolvable, ButtonStyle, ButtonBuilder, APIButtonComponentWithCustomId, APIEmbed, JSONEncodable, Attachment, AttachmentBuilder, AttachmentPayload, BufferResolvable, APIAttachment, BaseMessageOptions, MessageFlags, EmbedBuilder, ActionRowBuilder, MessageActionRowComponentBuilder, RestOrArray, APIEmbedField, ButtonInteraction, Interaction, InteractionType, Message, Snowflake, InteractionCollector, InteractionResponse, BaseInteraction, User } from 'discord.js';
+import { ComponentEmojiResolvable, ButtonStyle, ButtonBuilder, APIButtonComponentWithCustomId, APIEmbed, JSONEncodable, Attachment, AttachmentBuilder, AttachmentPayload, BufferResolvable, APIAttachment, BaseMessageOptions, MessageFlags, EmbedBuilder, ActionRowBuilder, MessageActionRowComponentBuilder, RestOrArray, APIEmbedField, ButtonInteraction, Interaction, InteractionType, Message, Snowflake, InteractionCollector, InteractionResponse, BaseInteraction, User, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, SelectMenuComponentOptionData, StringSelectMenuInteraction, ComponentType } from 'discord.js';
 import { Stream } from 'node:stream';
 
 /**
@@ -117,6 +117,51 @@ declare enum ExtraRowPosition {
     Above = 0,
     Below = 1
 }
+
+/**
+ * Select Menu Options for pagination
+ */
+interface SelectMenuOptions {
+    /**
+     * The custom ID for the select menu
+     */
+    customId: string;
+    /**
+     * The placeholder text for the select menu
+     */
+    placeholder?: string;
+    /**
+     * The minimum number of options that must be selected
+     */
+    minValues?: number;
+    /**
+     * The maximum number of options that can be selected
+     */
+    maxValues?: number;
+    /**
+     * Whether the select menu is disabled
+     */
+    disabled?: boolean;
+}
+
+/**
+ * Select Menu Page Configuration
+ */
+interface SelectMenuPageConfig {
+    /**
+     * The page number this select menu configuration applies to
+     */
+    page: number;
+    /**
+     * The options for this page's select menu
+     */
+    options: (StringSelectMenuOptionBuilder | SelectMenuComponentOptionData)[];
+    /**
+     * Select menu configuration
+     */
+    config?: Partial<SelectMenuOptions>;
+}
+
 /**
  * The options to customize the pagination.
  */
@@ -200,6 +245,12 @@ interface Options extends EmojiOptions {
      * @defaultValue ""
      */
     prevLabel: string;
+    /**
+     * Select menu configurations for different pages
+     *
+     * @defaultValue []
+     */
+    selectMenus: SelectMenuPageConfig[];
 }
 
 interface Payload extends BaseMessageOptions {
@@ -299,6 +350,16 @@ declare abstract class PaginationEmbed extends EmbedBuilder {
      * The pagination buttons.
      */
     buttons: Record<string, PButtonBuilder | undefined>;
+    /**
+     * Select menu configurations for different pages
+     *
+     * @defaultValue []
+     */
+    selectMenus: SelectMenuPageConfig[];
+    /**
+     * The current select menu action row
+     */
+    selectMenuRow: ActionRowBuilder<StringSelectMenuBuilder> | null;
     /**
      * Contents if changing contents per page.
      *
@@ -738,6 +799,51 @@ declare abstract class PaginationEmbed extends EmbedBuilder {
      */
     addAttachments(attachments: PAttachments): this;
     /**
+     * Sets select menus for different pages
+     *
+     * @param selectMenus - Array of select menu configurations for different pages
+     * @returns
+     * @example
+     * ```javascript
+     * const pagination = new Pagination(interaction)
+     *  .setSelectMenus([
+     *    {
+     *      page: 1,
+     *      options: [
+     *        { label: 'Option 1', value: 'opt1' },
+     *        { label: 'Option 2', value: 'opt2' }
+     *      ],
+     *      config: { placeholder: 'Choose an option...' }
+     *    },
+     *    {
+     *      page: 2,
+     *      options: [
+     *        { label: 'Option A', value: 'optA' },
+     *        { label: 'Option B', value: 'optB' }
+     *      ]
+     *    }
+     *  ]);
+     * ```
+     */
+    setSelectMenus(selectMenus: SelectMenuPageConfig[]): this;
+    /**
+     * Adds a select menu configuration for a specific page
+     *
+     * @param page - The page number
+     * @param options - The select menu options
+     * @param config - The select menu configuration
+     * @returns
+     * @example
+     * ```javascript
+     * const pagination = new Pagination(interaction)
+     *  .addSelectMenu(1, [
+     *    { label: 'Option 1', value: 'opt1' },
+     *    { label: 'Option 2', value: 'opt2' }
+     *  ], { placeholder: 'Choose an option...' });
+     * ```
+     */
+    addSelectMenu(page: number, options: (StringSelectMenuOptionBuilder | SelectMenuComponentOptionData)[], config?: Partial<SelectMenuOptions>): this;
+    /**
      * Triggers the pagination to go to a specific page.
      *
      * @param pageNumber - The page number to jump to
@@ -828,6 +934,19 @@ declare abstract class PaginationEmbed extends EmbedBuilder {
      * ```
      */
     protected goLast(interaction: ButtonInteraction): Promise<void>;
+    /**
+     * Handles select menu interactions
+     *
+     * @param interaction - The select menu interaction
+     * @returns
+     * @example
+     * ```javascript
+     * const pagination = new Pagination(interaction);
+     * ...
+     * pagination.handleSelectMenu(i);
+     * ```
+     */
+    protected handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void>;
     private _readyButton;
     /**
      * Prepare the message's action rows for pagination.
@@ -835,6 +954,10 @@ declare abstract class PaginationEmbed extends EmbedBuilder {
      * @returns
      */
     private _readyActionRows;
+    /**
+     * Prepare the select menu for the current page
+     */
+    private _readySelectMenu;
     /**
      * Prepare the message's payload.
      */
@@ -860,7 +983,7 @@ declare class Pagination extends PaginationEmbed {
     /**
      * The collector of the pagination.
      */
-    collector?: InteractionCollector<ButtonInteraction<'cached'>> | InteractionCollector<ButtonInteraction>;
+    collector?: InteractionCollector<ButtonInteraction<'cached'> | StringSelectMenuInteraction<'cached'>> | InteractionCollector<ButtonInteraction | StringSelectMenuInteraction>;
     /**
      * @param messageOrInteraction - The message or interaction to reply with the pagination message
      * @param options - The pagination options
@@ -1014,4 +1137,4 @@ declare class Pagination extends PaginationEmbed {
 
 declare const authorOrUser: (messageOrInteraction: BaseInteraction | Message) => User;
 
-export { type ButtonOptions, type ButtonsOptions, type EmojiOptions, ExtraRowPosition, type LabelOptions, type Options, type PAttachments, type PButtonBuilder, type PButtonStyle, type PEmbeds, Pagination, PaginationEmbed, type Payload, authorOrUser };
+export { type ButtonOptions, type ButtonsOptions, type EmojiOptions, ExtraRowPosition, type LabelOptions, type Options, type PAttachments, type PButtonBuilder, type PButtonStyle, type PEmbeds, Pagination, PaginationEmbed, type Payload, type SelectMenuOptions, type SelectMenuPageConfig, authorOrUser };
